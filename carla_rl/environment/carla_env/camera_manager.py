@@ -8,7 +8,28 @@ from carla import ColorConverter as cc
 
 # from carla_env.envs.carla_env.CarlaEnv import image_size
 # TODO: Get this from somewhere else
-image_size = (1280, 720)
+# image_size = (1280, 720)
+image_size = (160, 90)
+
+
+def to_bgra_array(image):
+    """Convert a CARLA raw image to a BGRA numpy array."""
+    array = np.frombuffer(image.raw_data, dtype=np.dtype('uint8'))
+    array = np.reshape(array, (image.height, image.width, 4))
+    return array
+
+
+def depth_to_array(image):
+    """
+    Convert an image containing CARLA encoded depth-map to a 2D array containing
+    the depth value of each pixel normalized between [0.0, 1.0].
+    """
+    array = to_bgra_array(image)
+    array = array.astype(np.float32)
+    # Apply (R + G * 256 + B * 256 * 256) / (256 * 256 * 256 - 1).
+    normalized_depth = np.dot(array[:, :, :3], [65536.0, 256.0, 1.0])
+    normalized_depth /= 16777215.0  # (256.0 * 256.0 * 256.0 - 1.0)
+    return normalized_depth
 
 
 class CameraManager(object):
@@ -16,7 +37,10 @@ class CameraManager(object):
     def __init__(self, parent_actor):
         self.sensor = None
         self.surface = None
-        self.surface_np = np.zeros((720, 1280, 3), dtype=np.uint8)
+        self.surface_depth = np.zeros((90, 160, 3), dtype=np.float32)
+        self.surface_np = np.zeros((90, 160, 3), dtype=np.uint8)
+        # self.surface_depth = np.zeros((720, 1280, 3), dtype=np.float32)
+        # self.surface_np = np.zeros((720, 1280, 3), dtype=np.uint8)
         self.parent = parent_actor
         self.recording = False
         self.camera_transforms = [
@@ -42,9 +66,11 @@ class CameraManager(object):
             item.append(bp)
         self.index = None
 
+
     def toggle_camera(self):
         self.transform_index = (self.transform_index + 1) % len(self.camera_transforms)
         self.sensor.set_transform(self.camera_transforms[self.transform_index])
+
 
     def set_sensor(self, index, notify=True):
         index = index % len(self.sensors)
@@ -68,12 +94,15 @@ class CameraManager(object):
             print(self.sensors[index][2])
         self.index = index
 
+
     def next_sensor(self):
         self.set_sensor(self.index + 1)
+
 
     def toggle_recording(self):
         self.recording = not self.recording
         print('Recording %s' % ('On' if self.recording else 'Off'))
+
 
     def render(self, display):
         pass
@@ -88,6 +117,7 @@ class CameraManager(object):
         array = np.frombuffer(image.raw_data, dtype=np.dtype('uint8'))
         array = np.reshape(array, (image.height, image.width, 4))
         array = array[:, :, :3]
+        self.surface_depth = depth_to_array(image)
         self.surface_np = array
         self.surface = pygame.surfarray.make_surface(array[:, :, ::-1].swapaxes(0, 1))
         if self.recording:

@@ -39,7 +39,7 @@ class World(object):
 
     def restart(self):
         # Keep same camera config if the camera manager exists.
-        cam_index = self.camera_manager.index if self.camera_manager is not None else 0
+        cam_index = self.camera_manager.index if self.camera_manager is not None else 3
         cam_pos_index = self.camera_manager.transform_index if self.camera_manager is not None else 0
 
         blueprint = self.world.get_blueprint_library().find('vehicle.lincoln.mkz2017')
@@ -51,7 +51,6 @@ class World(object):
         # Spawn the vehicle.
         if self.vehicle is not None:
             spawn_point = self.vehicle.get_transform()
-            # spawn_point.location.z += 8.0
             spawn_point.rotation.roll = 0.0
             spawn_point.rotation.pitch = 0.0
             self.destroy()
@@ -82,13 +81,17 @@ class World(object):
 
 
     def get_frame(self):
-        image = self.camera_manager.surface_np
+        image = self.camera_manager.surface_depth
+        return image, image
+        # image = self.camera_manager.surface_np
         # TODO: Get this from carla_env.py
-        # image_size_net = (160, 90)
-        image_size_net = (80, 45)
+        image_size_net = (160, 90)
+        # image_size_net = (80, 45)
         image_resized = cv2.resize(image, image_size_net)
-        image_resized = cv2.cvtColor(image_resized, cv2.COLOR_BGR2GRAY)
-        return image, image_resized[:, :, np.newaxis].astype(float)
+        # image_resized = cv2.cvtColor(image_resized, cv2.COLOR_BGR2GRAY)
+        # return image, image_resized[:, :, np.newaxis].astype(float)
+        # return image, image_resized.astype(float)
+        return image, image_resized
 
 
     def tick(self, clock):

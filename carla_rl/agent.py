@@ -17,11 +17,11 @@ class DQNAgent:
     def __init__(self, state_size, action_size):
         self.state_size = state_size
         self.action_size = action_size
-        self.memory = deque(maxlen=2000)
+        self.memory = deque(maxlen=3000)
         self.gamma = 0.95    # discount rate
         self.epsilon = 1.0  # exploration rate
-        self.epsilon_min = 0.01
-        self.epsilon_decay = 0.99
+        self.epsilon_min = 0.02
+        self.epsilon_decay = 0.99995
         self.learning_rate = 0.001
         self.model = self.build_model(state_size, action_size)
         self.target_model = self.build_model(state_size, action_size)
@@ -55,9 +55,8 @@ class DQNAgent:
 
         model = Sequential()
         # model.add(Conv2D(32, (3, 3), activation='relu', input_shape=state_size))
-        # model.add(Conv2D(32, (5, 5), activation='relu', input_shape=(90, 160, 3)))
-        model.add(Conv2D(32, (5, 5), activation='relu', input_shape=(45, 80, 1)))
-        model.add(Conv2D(32, (5, 5), activation='relu'))
+        model.add(Conv2D(32, (5, 5), activation='relu', input_shape=(90, 160, 1)))
+        # model.add(Conv2D(32, (5, 5), activation='relu', input_shape=(45, 80, 3)))
         model.add(Conv2D(32, (5, 5), activation='relu'))
         model.add(Conv2D(32, (5, 5), activation='relu'))
         model.add(Flatten())
@@ -77,8 +76,10 @@ class DQNAgent:
 
 
     def add_batch_channel(self, state):
+        if len(state.shape) == 2:
+            return state[np.newaxis, :, :, np.newaxis]
         if len(state.shape) == 3:
-            return state[np.newaxis]
+            return state[np.newaxis, :, :, :]
         return state
 
 

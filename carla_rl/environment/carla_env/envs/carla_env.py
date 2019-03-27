@@ -10,15 +10,12 @@ from gym.utils import seeding
 
 from carla_env.world import World
 
+ob_space = env.observation_space
+ac_space = env.action_space
 
 class CarlaEnv(gym.Env):
 
     metadata = {'render.modes': ['fpv', 'follow']}
-    image_size_display = (1280, 720)
-    image_size_net = (160, 90)
-    image_size_net_chans = (160, 90, 3)
-    # image_size_net = (80, 45)
-    # image_size_net_chans = (80, 45, 3)
 
     def __init__(self):
 
@@ -26,14 +23,17 @@ class CarlaEnv(gym.Env):
         client.set_timeout(4.0)
         self.world = World(client.get_world())
 
-        actions_steering = np.linspace(-1, 1, 5)
-        actions_throttle = np.linspace(0, 1, 3)
-        self.action_space = list(
-            product(actions_steering, actions_throttle))
-        
-        self.cool = False
+        num_samples = 20
+
+        self.observation_space = spaces.Box(
+            low=0, high=1.0, shape=(num_samples,), dtype=np.float32)
+
+        self.action_space = spaces.Box(
+            np.array([-1,0]), np.array([1,1]))
 
     def step(self, action, straight=False):
+
+        print(action)
 
         self.world.world.tick()
 

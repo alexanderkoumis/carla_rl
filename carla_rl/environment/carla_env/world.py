@@ -83,15 +83,6 @@ class World(object):
     def get_frame(self):
         image = self.camera_manager.surface_depth
         return image, image
-        # image = self.camera_manager.surface_np
-        # TODO: Get this from carla_env.py
-        image_size_net = (160, 90)
-        # image_size_net = (80, 45)
-        image_resized = cv2.resize(image, image_size_net)
-        # image_resized = cv2.cvtColor(image_resized, cv2.COLOR_BGR2GRAY)
-        # return image, image_resized[:, :, np.newaxis].astype(float)
-        # return image, image_resized.astype(float)
-        return image, image_resized
 
 
     def tick(self, clock):

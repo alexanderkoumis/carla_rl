@@ -1,4 +1,4 @@
-from itertools import product
+import time
 
 import carla
 import cv2
@@ -10,72 +10,69 @@ from gym.utils import seeding
 
 from carla_env.world import World
 
-ob_space = env.observation_space
-ac_space = env.action_space
 
 class CarlaEnv(gym.Env):
 
+
     metadata = {'render.modes': ['fpv', 'follow']}
+
 
     def __init__(self):
 
-        client = carla.Client('127.0.0.1', 2000)
-        client.set_timeout(4.0)
-        self.world = World(client.get_world())
-
         num_samples = 20
 
+        client = carla.Client('127.0.0.1', 2000)
+        client.set_timeout(6.0)
+        self.world = World(client.get_world(), num_samples)
+
         self.observation_space = spaces.Box(
-            low=0, high=1.0, shape=(num_samples,), dtype=np.float32)
+            low=0.0, high=1.0, shape=(num_samples,), dtype=np.float32)
 
         self.action_space = spaces.Box(
-            np.array([-1,0]), np.array([1,1]))
+            np.array([-1, 0]), np.array([1, 1]))
 
-    def step(self, action, straight=False):
 
-        print(action)
+    def step(self, action=(0.0, 1.0)):
 
-        self.world.world.tick()
-
-        if straight:
-            act_steer, act_throttle = 0.0, 1.0
-        else:
-            act_steer, act_throttle = self.action_space[action]
+        act_steer, act_throttle = action
         
         control = carla.VehicleControl()
-        control.steer = act_steer
-        control.throttle = act_throttle
+        control.steer = float(act_steer)
+        control.throttle = float(act_throttle)
         control.brake = 0.0
         control.hand_brake = False
         control.manual_gear_shift = False
 
         self.world.vehicle.apply_control(control)
-        next_state, next_state_resized = self.world.get_frame()
+        time.sleep(0.015)
+        self.world.world.tick()
+
+        next_state = self.world.get_state()
 
         done = len(self.world.collision_sensor.history) > 0
+        done = np.int(done)
 
-        vel = self.world.vehicle.get_velocity()
-        reward = np.linalg.norm([vel.x, vel.y, vel.z])
+        vel_y, vel_x = self.world.get_velocity()
 
-        return next_state_resized, reward, done
-            
+        reward = -10 if done else np.abs(vel_y)
 
-    def reset(self, render=False):
+        return next_state, reward, done, {}
+
+
+    def reset(self):
         while True:
             try:
                 self.world.restart()
                 break
-            except:
-                print('WARNING!!!!!! EXCEPTION SPAWNING')
+            except Exception as exc:
+                print('Exception spawning: {}'.format(exc))
                 pass
         for _ in range(35):
-            self.step(0, True)
-            if render:
-                self.render()
-        return self.world.get_frame()[1]
+            self.step()
+        return self.world.get_state()
 
 
     def render(self, mode='fpv'):
-        image = self.world.get_frame()[0]
+        image = self.world.get_depth_frame()
         cv2.imshow('Image', (image*255).astype(np.uint8))
         cv2.waitKey(1)

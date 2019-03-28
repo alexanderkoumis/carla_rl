@@ -1,5 +1,6 @@
 import random
 import re
+import time
 
 import carla
 import cv2
@@ -20,7 +21,10 @@ def find_weather_presets():
 class World(object):
 
 
-    def __init__(self, carla_world):
+    def __init__(self, carla_world, num_samples):
+
+        self.num_samples = num_samples
+
         self.world = carla_world
 
         settings = self.world.get_settings()
@@ -38,6 +42,9 @@ class World(object):
 
 
     def restart(self):
+
+        self.destroy_vehicles()
+
         # Keep same camera config if the camera manager exists.
         cam_index = self.camera_manager.index if self.camera_manager is not None else 3
         cam_pos_index = self.camera_manager.transform_index if self.camera_manager is not None else 0
@@ -70,7 +77,23 @@ class World(object):
         self.camera_manager.transform_index = cam_pos_index
         self.camera_manager.set_sensor(cam_index, notify=False)
 
-        return self.get_frame()
+        return self.get_state()
+
+
+    def get_velocity(self):
+
+        yaw_global = np.radians(self.vehicle.get_transform().rotation.yaw)
+
+        rotation_global = np.array([
+            [np.sin(yaw_global),  np.cos(yaw_global)],
+            [np.cos(yaw_global), -np.sin(yaw_global)]
+        ])
+
+        velocity_global = self.vehicle.get_velocity()
+        velocity_global = np.array([velocity_global.y, velocity_global.x])
+        velocity_local = rotation_global.T @ velocity_global
+
+        return velocity_local
 
 
     def next_weather(self, reverse=False):
@@ -80,21 +103,41 @@ class World(object):
         self.vehicle.get_world().set_weather(preset[0])
 
 
-    def get_frame(self):
-        image = self.camera_manager.surface_depth
-        return image, image
-
-
     def tick(self, clock):
         pass
 
 
     def render(self, display):
         self.camera_manager.render(display)
-    
+
+
+    def get_depth_frame(self):
+        return self.camera_manager.surface_depth
+
+
+    def get_state(self):
+        state = self.depth_to_points(self.get_depth_frame())
+        return state
+
+
+    def depth_to_points(self, image_depth):
+        rows, cols = image_depth.shape[:2]
+        step_size = cols // self.num_samples
+        row = rows // 2
+        idxs = [(row, col) for col in range(0, cols, step_size)]
+        elems = np.array([np.mean(image_depth[row, col]) for (row, col) in idxs])
+        return elems
+
 
     def destroy(self):
         actors = [self.collision_sensor.sensor, self.camera_manager.sensor, self.vehicle]
         for actor in actors:
             if actor is not None:
                 actor.destroy()
+
+
+    def destroy_vehicles(self):
+        for actor in self.world.get_actors():
+            if isinstance(actor, carla.libcarla.Vehicle):
+                actor.destroy()
+        time.sleep(0.5)

@@ -19,14 +19,14 @@ class CarlaEnv(gym.Env):
 
     def __init__(self):
 
-        num_samples = 20
+        num_samples = 80
 
         client = carla.Client('127.0.0.1', 2000)
         client.set_timeout(6.0)
         self.world = World(client.get_world(), num_samples)
 
         self.observation_space = spaces.Box(
-            low=0.0, high=1.0, shape=(num_samples,), dtype=np.float32)
+            low=0.0, high=1.0, shape=(num_samples*3,), dtype=np.float32)
 
         self.action_space = spaces.Box(
             np.array([-1, 0]), np.array([1, 1]))
@@ -44,9 +44,8 @@ class CarlaEnv(gym.Env):
         control.manual_gear_shift = False
 
         self.world.vehicle.apply_control(control)
-        time.sleep(0.015)
         self.world.world.tick()
-
+        self.world.world.wait_for_tick()
         next_state = self.world.get_state()
 
         done = len(self.world.collision_sensor.history) > 0

@@ -16,6 +16,7 @@ from baselines.common import set_global_seeds
 from baselines import logger
 from baselines.common.cmd_util import robotics_arg_parser
 from baselines.ppo1 import mlp_policy, pposgd_simple
+from mpi4py import MPI
 
 
 import carla_env
@@ -31,7 +32,7 @@ def train(env_id, num_timesteps, seed):
     sess = baselines.common.tf_util.single_threaded_session()
     sess.__enter__()
 
-    workerseed = seed + 10000
+    workerseed = seed + 10000 * MPI.COMM_WORLD.Get_rank()
     set_global_seeds(workerseed)
 
     env = gym.make('carla-v0')

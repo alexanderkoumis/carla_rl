@@ -51,6 +51,7 @@ class World(object):
 
         blueprint = self.world.get_blueprint_library().find('vehicle.lincoln.mkz2017')
         blueprint.set_attribute('role_name', 'hero')
+        blueprint.set_attribute('sticky_control', 'False')
         if blueprint.has_attribute('color'):
             color = random.choice(blueprint.get_attribute('color').recommended_values)
             blueprint.set_attribute('color', color)
@@ -124,7 +125,7 @@ class World(object):
         rows, cols = image_depth.shape[:2]
         step_size = cols // self.num_samples
         row = rows // 2
-        idxs = [(row, col) for col in range(0, cols, step_size)]
+        idxs = [(r, col) for col in range(0, cols, step_size) for r in [row-20, row, row+20]]
         elems = np.array([np.mean(image_depth[row, col]) for (row, col) in idxs])
         return elems
 

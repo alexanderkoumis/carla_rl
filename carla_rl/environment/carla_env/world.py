@@ -6,6 +6,8 @@ import carla
 import cv2
 import numpy as np
 
+from agents.navigation.roaming_agent import RoamingAgent
+
 from carla_env.camera_manager import CameraManager
 from carla_env.collision_sensor import CollisionSensor
 
@@ -33,6 +35,7 @@ class World(object):
 
         self.map = self.world.get_map()
         self.vehicle = None
+        self.autopilot_agent = None
         self.collision_sensor = None
         self.lane_invasion_sensor = None
         self.camera_manager = None
@@ -71,6 +74,8 @@ class World(object):
             spawn_points = self.map.get_spawn_points()
             spawn_point = spawn_points[1]
             self.vehicle = self.world.spawn_actor(blueprint, spawn_point)
+
+        self.autopilot_agent = RoamingAgent(self.vehicle)
 
         # Set up the sensors.
         self.collision_sensor = CollisionSensor(self.vehicle)
@@ -128,6 +133,11 @@ class World(object):
         idxs = [(r, col) for col in range(0, cols, step_size) for r in [row-20, row, row+20]]
         elems = np.array([np.mean(image_depth[row, col]) for (row, col) in idxs])
         return elems
+
+
+    def get_autopilot_control(self):
+        control = self.autopilot_agent.run_step()
+        return control
 
 
     def destroy(self):

@@ -31,14 +31,31 @@ class CarlaEnv(gym.Env):
         self.action_space = spaces.Box(
             np.array([-1, 0]), np.array([1, 1]))
 
+        self.epsilon = 0.95
+        self.epsilon_decay = 0.999999999
+        self.count = 0
 
-    def step(self, action=(0.0, 1.0)):
 
-        act_steer, act_throttle = action
-        
+    def step(self, control_network=(0.0, 1.0)):
+
+        control_autopilot = self.world.get_autopilot_control()
+
+        steer_autopilot, throttle_autopilot = control_autopilot.steer, control_autopilot.throttle
+        steer_network, throttle_network = control_network
+
+        steer = self.epsilon * steer_autopilot + (1.0 - self.epsilon) * steer_network
+        throttle = self.epsilon * throttle_autopilot + (1.0 - self.epsilon) * throttle_network
+
+
+        self.count += 1
+        self.epsilon = max(0.0, self.epsilon * self.epsilon_decay)
+        if self.count % 20 == 0:
+            print(self.epsilon, steer, throttle)
+
+
         control = carla.VehicleControl()
-        control.steer = float(act_steer)
-        control.throttle = float(act_throttle)
+        control.steer = float(steer)
+        control.throttle = float(throttle)
         control.brake = 0.0
         control.hand_brake = False
         control.manual_gear_shift = False
@@ -53,7 +70,7 @@ class CarlaEnv(gym.Env):
 
         vel_y, vel_x = self.world.get_velocity()
 
-        reward = -10 if done else np.abs(vel_y)
+        reward = -100 if done else np.abs(vel_y)
 
         return next_state, reward, done, {}
 
@@ -69,6 +86,7 @@ class CarlaEnv(gym.Env):
         for _ in range(35):
             self.step()
         return self.world.get_state()
+
 
 
     def render(self, mode='fpv'):

@@ -31,27 +31,28 @@ class CarlaEnv(gym.Env):
         self.action_space = spaces.Box(
             np.array([-1, 0]), np.array([1, 1]))
 
-        self.epsilon = 0.95
-        self.epsilon_decay = 0.999999999
+        self.epsilon = 0.60
+        self.epsilon_decay = 0.99
         self.count = 0
 
+        self.num_envs = 1
 
-    def step(self, control_network=(0.0, 1.0)):
+        # limit the timestep the car has to reach certain speed
+        self.num_of_steps_to_reach_speed = 100
+        self.num_of_steps = 0
+        self.speed = 3
+
+
+    def step(self, action):
 
         control_autopilot = self.world.get_autopilot_control()
 
         steer_autopilot, throttle_autopilot = control_autopilot.steer, control_autopilot.throttle
-        steer_network, throttle_network = control_network
+
+        steer_network, throttle_network = action
 
         steer = self.epsilon * steer_autopilot + (1.0 - self.epsilon) * steer_network
         throttle = self.epsilon * throttle_autopilot + (1.0 - self.epsilon) * throttle_network
-
-
-        self.count += 1
-        self.epsilon = max(0.0, self.epsilon * self.epsilon_decay)
-        if self.count % 20 == 0:
-            print(self.epsilon, steer, throttle)
-
 
         control = carla.VehicleControl()
         control.steer = float(steer)
@@ -69,22 +70,46 @@ class CarlaEnv(gym.Env):
         done = np.int(done)
 
         vel_y, vel_x = self.world.get_velocity()
+        acc_x, acc_y, acc_z = self.world.get_acceleration()
+        # acc = acc_x + acc_y
 
-        reward = -100 if done else np.abs(vel_y)
+        """
+        if after `num_of_steps_to_reach_speed` the speed of the car is still below `speed`
+        treat this as a done. This can avoid the car being stuck for unknown reasons (the collision
+        sensor doesn't seen to register collision as it's supposed to)
+        """
+        if done:
+            reward = -100
+        elif self.num_of_steps > self.num_of_steps_to_reach_speed and np.abs(vel_y) < self.speed:
+            reward = -100
+            done = True
+        else:
+            reward = 0.01 * np.abs(vel_y) + 0.05 * acc_y
+
+        self.num_of_steps += 1
 
         return next_state, reward, done, {}
 
 
     def reset(self):
-        while True:
-            try:
-                self.world.restart()
-                break
-            except Exception as exc:
-                print('Exception spawning: {}'.format(exc))
-                pass
-        for _ in range(35):
-            self.step()
+        # print('reset')
+        self.world.restart()
+        self.num_of_steps = 0
+        # while True:
+        #     try:
+        #         self.world.restart()
+        #         break
+        #     except Exception as exc:
+        #         print('Exception spawning: {}'.format(exc))
+        #         pass
+        # for _ in range(35):
+        #     self.step()
+
+        self.count += 1
+        self.epsilon = max(0.0, self.epsilon * self.epsilon_decay)
+        # if self.count % 20 == 0:
+        #     print(self.epsilon, steer, throttle)
+
         return self.world.get_state()
 
 

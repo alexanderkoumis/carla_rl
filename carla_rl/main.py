@@ -9,53 +9,35 @@ Based on:
 
 '''
 
-import baselines.common.tf_util
 import gym
-
-from baselines.common import set_global_seeds
-from baselines import logger
-from baselines.common.cmd_util import robotics_arg_parser
-from baselines.ppo1 import mlp_policy, pposgd_simple
-from mpi4py import MPI
-
-
 import carla_env
+import tensorflow as tf
+
+from stable_baselines.common.policies import MlpPolicy 
+from stable_baselines.common.vec_env import DummyVecEnv
+from stable_baselines import PPO1
 
 
-def policy_fn(name, ob_space, ac_space):
-    return mlp_policy.MlpPolicy(name=name, ob_space=ob_space, ac_space=ac_space,
-                                hid_size=256, num_hid_layers=3)
+def train():
 
-
-def train(env_id, num_timesteps, seed):
-
-    sess = baselines.common.tf_util.single_threaded_session()
-    sess.__enter__()
-
-    workerseed = seed + 10000 * MPI.COMM_WORLD.Get_rank()
-    set_global_seeds(workerseed)
-
+    ## create a gym env
     env = gym.make('carla-v0')
 
-    pposgd_simple.learn(env, policy_fn,
-        max_timesteps=num_timesteps,
-        timesteps_per_actorbatch=2048,
-        clip_param=0.2,
-        entcoeff=0.0,
-        optim_epochs=5,
-        optim_stepsize=3e-4,
-        optim_batchsize=None,
-        gamma=0.99,
-        lam=0.95,
-        schedule='linear',
-    )
+    ## vectorize the environment
+    env = DummyVecEnv([lambda: env])
 
-    env.close()
+    ## define a MLP policy with 2 layers of size 256 with tanh activation
+    policy_kwargs = dict(act_fun=tf.nn.tanh, net_arch=[256, 256])
 
+    model = PPO1(MlpPolicy, env, policy_kwargs=policy_kwargs, timesteps_per_actorbatch=500, verbose=1, tensorboard_log='data/tensorboard_log/')
+
+    model.learn(total_timesteps=50000000)
+    model.save('data/ppo1_carla')
+
+    del model
 
 def main():
-    args = robotics_arg_parser().parse_args()
-    train(args.env, num_timesteps=args.num_timesteps, seed=args.seed)
+    train()
 
 
 if __name__ == '__main__':

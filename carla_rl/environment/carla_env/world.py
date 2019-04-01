@@ -41,13 +41,25 @@ class World(object):
         self.camera_manager = None
         self.weather_presets = find_weather_presets()
         self.weather_index = 0
-        self.restart()
+        self.spawn_points = self.map.get_spawn_points()
+        self.create_vehicle()
+        # self.restart()
 
 
     def restart(self):
 
-        self.destroy_vehicles()
+        # self.destroy_vehicles()
 
+        # reset the transform of the vehicle
+        spawn_point = random.choice(self.spawn_points)
+        self.vehicle.set_transform(spawn_point)
+
+        # clear collision sensor history
+        self.collision_sensor.history.clear()
+
+        return self.get_state()
+
+    def create_vehicle(self):
         # Keep same camera config if the camera manager exists.
         cam_index = self.camera_manager.index if self.camera_manager is not None else 3
         cam_pos_index = self.camera_manager.transform_index if self.camera_manager is not None else 0
@@ -66,24 +78,22 @@ class World(object):
             spawn_point.rotation.pitch = 0.0
             self.destroy()
 
-            spawn_points = self.map.get_spawn_points()
-            spawn_point = spawn_points[1]
+            spawn_point = random.choice(self.spawn_points)
             self.vehicle = self.world.spawn_actor(blueprint, spawn_point)
 
         while self.vehicle is None:
-            spawn_points = self.map.get_spawn_points()
-            spawn_point = spawn_points[1]
+            spawn_point = random.choice(self.spawn_points)
             self.vehicle = self.world.spawn_actor(blueprint, spawn_point)
 
         self.autopilot_agent = RoamingAgent(self.vehicle)
+        ## set the target speed of the autopilot
+        self.autopilot_agent._local_planner.set_speed(150)
 
         # Set up the sensors.
         self.collision_sensor = CollisionSensor(self.vehicle)
         self.camera_manager = CameraManager(self.vehicle)
         self.camera_manager.transform_index = cam_pos_index
         self.camera_manager.set_sensor(cam_index, notify=False)
-
-        return self.get_state()
 
 
     def get_velocity(self):
@@ -100,6 +110,10 @@ class World(object):
         velocity_local = rotation_global.T @ velocity_global
 
         return velocity_local
+
+    def get_acceleration(self):
+        acc = self.vehicle.get_acceleration()
+        return acc.x, acc.y, acc.z
 
 
     def next_weather(self, reverse=False):

@@ -10,7 +10,6 @@ from gym.utils import seeding
 
 from carla_env.world import World
 
-
 class CarlaEnv(gym.Env):
 
 
@@ -18,11 +17,14 @@ class CarlaEnv(gym.Env):
 
 
     def __init__(self):
+        pygame.init()
+        pygame.font.init()
 
         num_samples = 80
 
         client = carla.Client('127.0.0.1', 2000)
         client.set_timeout(6.0)
+
         self.world = World(client.get_world(), num_samples)
 
         self.observation_space = spaces.Box(
@@ -31,16 +33,16 @@ class CarlaEnv(gym.Env):
         self.action_space = spaces.Box(
             np.array([-1, 0]), np.array([1, 1]))
 
-        self.epsilon = 0.60
-        self.epsilon_decay = 0.99
+        self.epsilon = 0.30
+        self.epsilon_decay = 0.95
         self.count = 0
 
         self.num_envs = 1
 
         # limit the timestep the car has to reach certain speed
-        self.num_of_steps_to_reach_speed = 100
-        self.num_of_steps = 0
-        self.speed = 3
+        # self.num_of_steps_to_reach_speed = 100
+        # self.num_of_steps = 0
+        # self.speed = 3
 
 
     def step(self, action):
@@ -70,23 +72,12 @@ class CarlaEnv(gym.Env):
         done = np.int(done)
 
         vel_y, vel_x = self.world.get_velocity()
-        acc_x, acc_y, acc_z = self.world.get_acceleration()
-        # acc = acc_x + acc_y
+        acc_y, acc_x = self.world.get_acceleration()
 
-        """
-        if after `num_of_steps_to_reach_speed` the speed of the car is still below `speed`
-        treat this as a done. This can avoid the car being stuck for unknown reasons (the collision
-        sensor doesn't seen to register collision as it's supposed to)
-        """
         if done:
             reward = -100
-        elif self.num_of_steps > self.num_of_steps_to_reach_speed and np.abs(vel_y) < self.speed:
-            reward = -100
-            done = True
         else:
-            reward = 0.01 * np.abs(vel_y) + 0.05 * acc_y
-
-        self.num_of_steps += 1
+            reward = 0.01 * vel_y + 0.05 * acc_y - 0.005 * (np.abs(vel_x) + np.abs(acc_x))
 
         return next_state, reward, done, {}
 
@@ -94,16 +85,6 @@ class CarlaEnv(gym.Env):
     def reset(self):
         # print('reset')
         self.world.restart()
-        self.num_of_steps = 0
-        # while True:
-        #     try:
-        #         self.world.restart()
-        #         break
-        #     except Exception as exc:
-        #         print('Exception spawning: {}'.format(exc))
-        #         pass
-        # for _ in range(35):
-        #     self.step()
 
         self.count += 1
         self.epsilon = max(0.0, self.epsilon * self.epsilon_decay)
@@ -118,3 +99,5 @@ class CarlaEnv(gym.Env):
         image = self.world.get_depth_frame()
         cv2.imshow('Image', (image*255).astype(np.uint8))
         cv2.waitKey(1)
+        self.world.render(self.render)
+        pygame.display.flip()

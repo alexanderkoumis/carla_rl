@@ -51,8 +51,19 @@ class World(object):
         # self.destroy_vehicles()
 
         # reset the transform of the vehicle
-        spawn_point = random.choice(self.spawn_points)
+        # spawn_point = random.choice(self.spawn_points)
+        spawn_point = self.spawn_points[0]
         self.vehicle.set_transform(spawn_point)
+
+        # wait for the car to settle
+        for _ in range(50):
+            self.world.tick()
+            if self.vehicle.get_velocity().z == 0.0:
+                break
+
+        # reset the local planner to purge all old waypoints
+        self.autopilot_agent._local_planner.init_controller(opt_dict={})
+        self.autopilot_agent._local_planner.set_speed(150)
 
         # clear collision sensor history
         self.collision_sensor.history.clear()
@@ -105,15 +116,25 @@ class World(object):
             [np.cos(yaw_global), -np.sin(yaw_global)]
         ])
 
-        velocity_global = self.vehicle.get_velocity()
-        velocity_global = np.array([velocity_global.y, velocity_global.x])
+        v = self.vehicle.get_velocity()
+        velocity_global = np.array([v.y, v.x])
         velocity_local = rotation_global.T @ velocity_global
 
-        return velocity_local
+        return velocity_local[0], velocity_local[1]
 
     def get_acceleration(self):
+        yaw_global = np.radians(self.vehicle.get_transform().rotation.yaw)
+
+        rotation_global = np.array([
+            [np.sin(yaw_global),  np.cos(yaw_global)],
+            [np.cos(yaw_global), -np.sin(yaw_global)]
+        ])
+
         acc = self.vehicle.get_acceleration()
-        return acc.x, acc.y, acc.z
+        acceleration_global = np.array([acc.y, acc.x])
+        acceleration_local = rotation_global.T @ acceleration_global
+
+        return acceleration_local[0], acceleration_local[1]
 
 
     def next_weather(self, reverse=False):
